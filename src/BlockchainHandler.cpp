@@ -107,7 +107,7 @@ JsonDocument BlockchainHandler::createCommandObject(const String &command, const
     JsonObject payload = cmdObject["payload"].to<JsonObject>();
     JsonObject exec = payload["exec"].to<JsonObject>();
     exec["code"] = command;
-q
+
     // Add transfer-specific capabilities and keyset
     if (command.indexOf("transfer-create") != -1 && !transferParams.receiver.empty()) {
         // Add keyset to data section
