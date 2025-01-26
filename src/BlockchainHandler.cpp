@@ -9,6 +9,7 @@
 #include <cstdio>
 #include <ctime>
 #include <sstream>
+#include <cmath>
 
 // Redefine strptime to avoid IRAM issue when using the HTTPClient functions
 char *strptime(const char *str, const char *format, struct tm *tm)
@@ -79,7 +80,7 @@ int32_t BlockchainHandler::performNodeSync(const std::string& node_id,
     return 300000; // Every 5 minutes. That should be enough for previous txn to be complete
 }
 
-JsonDocument BlockchainHandler::createCommandObject(const String &command)
+JsonDocument BlockchainHandler::createCommandObject(const String &command, const TransferParams& transferParams)
 {
     JsonDocument cmdObject;
 
@@ -96,7 +97,7 @@ JsonDocument BlockchainHandler::createCommandObject(const String &command)
     meta["ttl"] = 28800;
     meta["chainId"] = "19";
     meta["gasPrice"] = 1e-7;
-    meta["gasLimit"] = 8000;
+    meta["gasLimit"] = 2500;
     meta["sender"] = "k:" + public_key_;
 
     cmdObject["nonce"] = getCurrentTimestamp();
@@ -106,8 +107,29 @@ JsonDocument BlockchainHandler::createCommandObject(const String &command)
     JsonObject payload = cmdObject["payload"].to<JsonObject>();
     JsonObject exec = payload["exec"].to<JsonObject>();
     exec["code"] = command;
-    exec["data"].to<JsonObject>(); // Empty data object
+q
+    // Add transfer-specific capabilities and keyset
+    if (command.indexOf("transfer-create") != -1 && !transferParams.receiver.empty()) {
+        // Add keyset to data section
+        JsonObject data = exec["data"].to<JsonObject>();
+        JsonObject keyset = data["keyset"].to<JsonObject>();
+        keyset["keys"] = JsonArray().add(transferParams.receiver.c_str());
+        keyset["pred"] = "keys-all";
 
+        // Add capabilities to signer's clist
+        JsonArray scaps = signer["clist"].to<JsonArray>();
+        // Always add GAS capability to signer
+        JsonObject gasCap = scaps.add<JsonObject>();
+        gasCap["name"] = "coin.GAS";
+        gasCap["args"] = JsonArray();
+        // Add TRANSFER capability to signer's clist
+        JsonObject transferCap = scaps.add<JsonObject>();
+        transferCap["name"] = transferParams.tokenContract + ".TRANSFER";
+        JsonArray args = transferCap["args"].to<JsonArray>();
+        args.add("k:" + public_key_);
+        args.add("k:" + transferParams.receiver);
+        args.add(transferParams.amount);
+    }
     return cmdObject;
 }
 
@@ -166,7 +188,7 @@ BlockchainStatus BlockchainHandler::parseBlockchainResponse(const String &respon
     return returnStatus;
 }
 
-BlockchainStatus BlockchainHandler::executeBlockchainCommand(const String &commandType, const String &command)
+BlockchainStatus BlockchainHandler::executeBlockchainCommand(const String &commandType, const String &command, const TransferParams& transferParams)
 {
     if (!isWifiAvailable()) {
         return BlockchainStatus::NO_WIFI;
@@ -176,7 +198,7 @@ BlockchainStatus BlockchainHandler::executeBlockchainCommand(const String &comma
     http.begin(kda_server_ + commandType);
     http.addHeader("Content-Type", "application/json");
 
-    JsonDocument cmdObject = createCommandObject(command);
+    JsonDocument cmdObject = createCommandObject(command, transferParams);
     JsonDocument postObject = preparePostObject(cmdObject, commandType);
 
     String postRaw;
@@ -215,6 +237,33 @@ String BlockchainHandler::encryptPayload(const std::string &payload)
         return "";
     }
     return encryptionHandler_->encrypt(director_pubkeyd_, payload);
+}
+
+// Add new method to handle token transfers
+BlockchainStatus BlockchainHandler::executeTransfer(const String& receiver, const String& amount, const String& tokenContract) {
+    if (!isWalletConfigValid()) {
+        return BlockchainStatus::FAILURE;
+    }
+
+    //float amountFloat = amount.toFloat();
+    // // Validate amount
+    // if (amountFloat <= 0 || std::isnan(amountFloat) || std::isinf(amountFloat)) {
+    //     return BlockchainStatus::FAILURE;
+    // }
+
+    // Construct the transfer command with capabilities
+    String command = "(" + tokenContract + ".transfer-create \""
+        + "k:" + public_key_ + "\" \""
+        + receiver + "\" "
+        + amount + ")";
+
+    // Package parameters
+    TransferParams params;
+    params.receiver = receiver;
+    params.amount = amount;
+    params.tokenContract = tokenContract;
+
+    return executeBlockchainCommand("send", command, params);
 }
 
 // Function to convert enum to string

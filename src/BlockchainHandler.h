@@ -24,6 +24,12 @@ enum class BlockchainStatus {
     NOT_DUE,
 };
 
+struct TransferParams {
+    String receiver;
+    String amount;
+    String tokenContract;
+};
+
 // Meshtastic callbacks
 using PacketIdGenerator = std::function<uint32_t(void)>;
 using SecretCallback = std::function<void(uint32_t packetId)>;
@@ -79,9 +85,10 @@ class BlockchainHandler
      *
      * @param commandType Identifies the web service for the call.
      * @param command Specifies the blockchain command for execution on the web service.
+     * @param transferParams The transfer parameters to be used for the command.
      * @return A BlockchainStatus enumeration value indicating the result of the command execution.
      */
-    BlockchainStatus executeBlockchainCommand(const String &commandType, const String &command);
+    BlockchainStatus executeBlockchainCommand(const String &commandType, const String &command, const TransferParams& transferParams = {});
 
     /**
      * Encrypts a payload.
@@ -94,6 +101,16 @@ class BlockchainHandler
      * @return A string containing the encrypted payload.
      */
     String encryptPayload(const std::string &payload);
+
+    /**
+     * Executes a token transfer on the blockchain.
+     *
+     * @param receiver The receiver's address.
+     * @param amount The amount of tokens to transfer.
+     * @param tokenContract The contract address of the token to transfer.
+     * @return A BlockchainStatus enum value indicating the result of the transfer.
+     */
+    BlockchainStatus executeTransfer(const String& receiver, const String& amount, const String& tokenContract);
 
     /**
      * Converts a BlockchainStatus enum value to its corresponding string representation.
@@ -121,9 +138,10 @@ class BlockchainHandler
      * Uses ArduinoJson's JsonDocument for efficient memory management and JSON handling.
      *
      * @param command The blockchain command to be executed.
+     * @param transferParams The transfer parameters to be used for the command.
      * @return A JsonDocument representing the command to be sent to the blockchain.
      */
-    JsonDocument createCommandObject(const String &command);
+    JsonDocument createCommandObject(const String &command, const TransferParams& transferParams = {});
 
     /**
      * Prepares a JSON document for POST request based on the command object and command type.
