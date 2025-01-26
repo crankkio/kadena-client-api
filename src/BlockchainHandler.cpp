@@ -109,7 +109,7 @@ JsonDocument BlockchainHandler::createCommandObject(const String &command, const
     exec["code"] = command;
 
     // Add transfer-specific capabilities and keyset
-    if (command.indexOf("transfer-create") != -1 && !transferParams.receiver.empty()) {
+    if (command.indexOf("transfer-create") != -1 && !transferParams.receiver.isEmpty()) {
         // Add keyset to data section
         JsonObject data = exec["data"].to<JsonObject>();
         JsonObject keyset = data["keyset"].to<JsonObject>();
@@ -252,10 +252,9 @@ BlockchainStatus BlockchainHandler::executeTransfer(const String& receiver, cons
     // }
 
     // Construct the transfer command with capabilities
-    String command = "(" + tokenContract + ".transfer-create \""
-        + "k:" + public_key_ + "\" \""
-        + receiver + "\" "
-        + amount + ")";
+    String command = "(" + tokenContract + ".transfer-create \"k:" +
+                    String(public_key_.c_str()) + "\" \"" + receiver + "\" " +
+                    amount + ")";
 
     // Package parameters
     TransferParams params;
