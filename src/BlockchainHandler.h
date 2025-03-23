@@ -22,6 +22,7 @@ enum class BlockchainStatus {
     NODE_NOT_FOUND,
     READY,
     NOT_DUE,
+    INVALID_AMOUNT,
 };
 
 struct TransferParams {

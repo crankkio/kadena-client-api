@@ -121,14 +121,14 @@ JsonDocument BlockchainHandler::createCommandObject(const String &command, const
         // Always add GAS capability to signer
         JsonObject gasCap = scaps.add<JsonObject>();
         gasCap["name"] = "coin.GAS";
-        gasCap["args"] = JsonArray();
+        gasCap["args"].to<JsonArray>();
         // Add TRANSFER capability to signer's clist
         JsonObject transferCap = scaps.add<JsonObject>();
         transferCap["name"] = transferParams.tokenContract + ".TRANSFER";
         JsonArray args = transferCap["args"].to<JsonArray>();
         args.add("k:" + public_key_);
         args.add("k:" + transferParams.receiver);
-        args.add(transferParams.amount);
+        args.add(transferParams.amount.toFloat());
     }
     return cmdObject;
 }
@@ -149,9 +149,8 @@ JsonDocument BlockchainHandler::preparePostObject(const JsonDocument &cmdObject,
     String signHex = encryptionHandler_->generateSignature(public_key_, private_key_, hashBin);
 
     postObject["hash"] = hash;
-    JsonArray sigs = postObject["sigs"].to<JsonArray>();
-    JsonObject sigObject = sigs.add<JsonObject>();
-    sigObject["sig"] = signHex;
+    JsonObject sigs = postObject["sigs"].to<JsonObject>();
+    sigs[public_key_] = signHex;
 
     return postObject;
 }
@@ -245,11 +244,11 @@ BlockchainStatus BlockchainHandler::executeTransfer(const String& receiver, cons
         return BlockchainStatus::FAILURE;
     }
 
-    //float amountFloat = amount.toFloat();
-    // // Validate amount
-    // if (amountFloat <= 0 || std::isnan(amountFloat) || std::isinf(amountFloat)) {
-    //     return BlockchainStatus::FAILURE;
-    // }
+    float amountFloat = amount.toFloat();
+    // Validate amount
+    if (amountFloat <= 0 || std::isnan(amountFloat) || std::isinf(amountFloat)) {
+        return BlockchainStatus::INVALID_AMOUNT;
+    }
 
     // Construct the transfer command with capabilities
     String command = "(" + tokenContract + ".transfer-create \"k:" +
