@@ -80,15 +80,17 @@ int32_t BlockchainHandler::performNodeSync(const std::string& node_id,
     return 300000; // Every 5 minutes. That should be enough for previous txn to be complete
 }
 
-JsonDocument BlockchainHandler::createCommandObject(const String &command, const TransferParams& transferParams)
+JsonDocument BlockchainHandler::createCommandObject(const String &command, const String &commandType, const TransferParams& transferParams)
 {
     JsonDocument cmdObject;
 
     // Create signers array
     JsonArray signers = cmdObject["signers"].to<JsonArray>();
-    JsonObject signer = signers.add<JsonObject>();
-    //signer["scheme"] = "ED25519";
-    signer["pubKey"] = public_key_;
+    if (commandType == "send") {
+        JsonObject signer = signers.add<JsonObject>();
+        //signer["scheme"] = "ED25519";
+        signer["pubKey"] = public_key_;
+    }
 
     // Create meta object
     JsonObject meta = cmdObject["meta"].to<JsonObject>();
@@ -115,6 +117,7 @@ JsonDocument BlockchainHandler::createCommandObject(const String &command, const
         // keyset["keys"] = JsonArray().add(transferParams.receiver.c_str());
         // keyset["pred"] = "keys-all";
 
+        JsonObject signer = signers.add<JsonObject>();
         // Add capabilities to signer's clist
         JsonArray scaps = signer["clist"].to<JsonArray>();
         // Always add GAS capability to signer
@@ -149,8 +152,10 @@ JsonDocument BlockchainHandler::preparePostObject(const JsonDocument &cmdObject,
 
     postObject["hash"] = hash;
     JsonArray sigs = postObject["sigs"].to<JsonArray>();
-    JsonObject sigObject = sigs.add<JsonObject>();
-    sigObject["sig"] = signHex;
+    if (commandType == "send") {
+        JsonObject sigObject = sigs.add<JsonObject>();
+        sigObject["sig"] = signHex;
+    }
 
     return postObject;
 }
@@ -197,7 +202,7 @@ BlockchainStatus BlockchainHandler::executeBlockchainCommand(const String &comma
     http.begin(kda_server_ + commandType);
     http.addHeader("Content-Type", "application/json");
 
-    JsonDocument cmdObject = createCommandObject(command, transferParams);
+    JsonDocument cmdObject = createCommandObject(command, commandType, transferParams);
     JsonDocument postObject = preparePostObject(cmdObject, commandType);
 
     String postRaw;

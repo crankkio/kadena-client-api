@@ -139,10 +139,11 @@ class BlockchainHandler
      * Uses ArduinoJson's JsonDocument for efficient memory management and JSON handling.
      *
      * @param command The blockchain command to be executed.
+     * @param commandType The type of the command, affecting how the command object is prepared.
      * @param transferParams The transfer parameters to be used for the command.
      * @return A JsonDocument representing the command to be sent to the blockchain.
      */
-    JsonDocument createCommandObject(const String &command, const TransferParams& transferParams = {});
+    JsonDocument createCommandObject(const String &command, const String &commandType, const TransferParams& transferParams = {});
 
     /**
      * Prepares a JSON document for POST request based on the command object and command type.
