@@ -151,7 +151,7 @@ JsonDocument BlockchainHandler::preparePostObject(const JsonDocument &cmdObject,
     postObject["hash"] = hash;
     JsonArray sigs = postObject["sigs"].to<JsonArray>();
     JsonObject sigObject = sigs.add<JsonObject>();
-    sigObject[public_key_] = signHex;
+    sigObject["sig"] = signHex;
 
     return postObject;
 }
