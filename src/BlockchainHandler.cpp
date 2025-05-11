@@ -87,9 +87,9 @@ JsonDocument BlockchainHandler::createCommandObject(const String &command, const
     // Create signers array
     JsonArray signers = cmdObject["signers"].to<JsonArray>();
     JsonObject signer = signers.add<JsonObject>();
-    signer["scheme"] = "ED25519";
+    //signer["scheme"] = "ED25519";
     signer["pubKey"] = public_key_;
-    signer["addr"] = public_key_;
+    //signer["addr"] = public_key_;
 
     // Create meta object
     JsonObject meta = cmdObject["meta"].to<JsonObject>();
