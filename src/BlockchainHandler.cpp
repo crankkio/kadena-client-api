@@ -261,7 +261,7 @@ BlockchainStatus BlockchainHandler::executeTransfer(const String& receiver, cons
     params.amount = amount;
     params.tokenContract = tokenContract;
 
-    return executeBlockchainCommand("local", command, params);
+    return executeBlockchainCommand("send", command, params);
 }
 
 // Function to convert enum to string
