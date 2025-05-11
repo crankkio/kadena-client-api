@@ -149,8 +149,9 @@ JsonDocument BlockchainHandler::preparePostObject(const JsonDocument &cmdObject,
     String signHex = encryptionHandler_->generateSignature(public_key_, private_key_, hashBin);
 
     postObject["hash"] = hash;
-    JsonObject sigs = postObject["sigs"].to<JsonObject>();
-    sigs[public_key_] = signHex;
+    JsonArray sigs = postObject["sigs"].to<JsonArray>();
+    JsonObject sigObject = sigs.add<JsonObject>();
+    sigObject[public_key_] = signHex;
 
     return postObject;
 }
