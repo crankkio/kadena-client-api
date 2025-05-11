@@ -201,6 +201,8 @@ BlockchainStatus BlockchainHandler::executeBlockchainCommand(const String &comma
     JsonDocument cmdObject = createCommandObject(command, transferParams);
     JsonDocument postObject = preparePostObject(cmdObject, commandType);
 
+    logLongString(postObject.as<String>());
+
     String postRaw;
     if (commandType == "local") {
         serializeJson(postObject, postRaw);
