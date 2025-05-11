@@ -94,7 +94,7 @@ JsonDocument BlockchainHandler::createCommandObject(const String &command, const
     JsonObject meta = cmdObject["meta"].to<JsonObject>();
     meta["creationTime"] = getCurrentUnixTime();
     meta["ttl"] = 28800;
-    meta["chainId"] = "19";
+    meta["chainId"] = "0";
     meta["gasPrice"] = 1e-7;
     meta["gasLimit"] = 2500;
     meta["sender"] = "k:" + public_key_;
