@@ -89,7 +89,6 @@ JsonDocument BlockchainHandler::createCommandObject(const String &command, const
     JsonObject signer = signers.add<JsonObject>();
     //signer["scheme"] = "ED25519";
     signer["pubKey"] = public_key_;
-    //signer["addr"] = public_key_;
 
     // Create meta object
     JsonObject meta = cmdObject["meta"].to<JsonObject>();
@@ -201,8 +200,6 @@ BlockchainStatus BlockchainHandler::executeBlockchainCommand(const String &comma
     JsonDocument cmdObject = createCommandObject(command, transferParams);
     JsonDocument postObject = preparePostObject(cmdObject, commandType);
 
-    logLongString(postObject.as<String>());
-
     String postRaw;
     if (commandType == "local") {
         serializeJson(postObject, postRaw);
@@ -255,7 +252,7 @@ BlockchainStatus BlockchainHandler::executeTransfer(const String& receiver, cons
 
     // Construct the transfer command with capabilities
     String command = "(" + tokenContract + ".transfer \"k:" +
-                    String(public_key_.c_str()) + "\" \"" + receiver + "\" " +
+                    String(public_key_.c_str()) + "\" \"k:" + receiver + "\" " +
                     amount + ")";
 
     // Package parameters
