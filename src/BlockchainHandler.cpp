@@ -86,8 +86,9 @@ JsonDocument BlockchainHandler::createCommandObject(const String &command, const
 
     // Create signers array
     JsonArray signers = cmdObject["signers"].to<JsonArray>();
+    JsonObject signer;
     if (commandType == "send") {
-        JsonObject signer = signers.add<JsonObject>();
+        signer = signers.add<JsonObject>();
         //signer["scheme"] = "ED25519";
         signer["pubKey"] = public_key_;
     }
@@ -116,8 +117,9 @@ JsonDocument BlockchainHandler::createCommandObject(const String &command, const
         // JsonObject keyset = data["keyset"].to<JsonObject>();
         // keyset["keys"] = JsonArray().add(transferParams.receiver.c_str());
         // keyset["pred"] = "keys-all";
-
-        JsonObject signer = signers.add<JsonObject>();
+        if (signer.isNull()) {
+            signer = signers.add<JsonObject>();
+        }
         // Add capabilities to signer's clist
         JsonArray scaps = signer["clist"].to<JsonArray>();
         // Always add GAS capability to signer
