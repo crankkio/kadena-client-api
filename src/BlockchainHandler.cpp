@@ -195,6 +195,36 @@ BlockchainStatus BlockchainHandler::parseBlockchainResponse(const String &respon
     return returnStatus;
 }
 
+BlockchainStatus BlockchainHandler::executeHttpRequest(const String &commandType, const String &postRaw, String &response)
+{
+    if (!isWifiAvailable()) {
+        return BlockchainStatus::NO_WIFI;
+    }
+
+    HTTPClient http;
+    http.begin(kda_server_ + commandType);
+    http.addHeader("Content-Type", "application/json");
+
+    logLongString(postRaw);
+
+    http.setTimeout(15000);
+    int httpResponseCode = http.POST(postRaw);
+    response = http.getString();
+    logLongString(response);
+
+    http.end();
+    // Handle HTTP response codes
+    if (httpResponseCode < 0 || (httpResponseCode >= 400 && httpResponseCode <= 599)) {
+        return BlockchainStatus::HTTP_ERROR;
+    }
+    if (httpResponseCode == HTTP_CODE_NO_CONTENT) {
+        return BlockchainStatus::EMPTY_RESPONSE;
+    }
+
+    return BlockchainStatus::SUCCESS;
+}
+
+
 BlockchainStatus BlockchainHandler::executeBlockchainCommand(const String &commandType, const String &command,
                                                            String& postRaw, const TransferParams& transferParams)
 {
@@ -209,32 +239,12 @@ BlockchainStatus BlockchainHandler::executeBlockchainCommand(const String &comma
         cmds.add(postObject.as<JsonObject>());
         serializeJson(finalDoc, postRaw);
     }
-
-    if (!isWifiAvailable()) {
-        return BlockchainStatus::NO_WIFI;
+    String response;
+    BlockchainStatus status = executeHttpRequest(commandType, postRaw, response);
+    if (status == BlockchainStatus::SUCCESS && commandType == "local") {
+        return parseBlockchainResponse(response, command);
     }
-
-    HTTPClient http;
-    http.begin(kda_server_ + commandType);
-    http.addHeader("Content-Type", "application/json");
-
-    logLongString(postRaw);
-
-    http.setTimeout(15000);
-    int httpResponseCode = http.POST(postRaw);
-    String response = http.getString();
-    logLongString(response);
-
-    http.end();
-    // Handle HTTP response codes
-    if (httpResponseCode < 0 || (httpResponseCode >= 400 && httpResponseCode <= 599)) {
-        return BlockchainStatus::HTTP_ERROR;
-    }
-    if (httpResponseCode == HTTP_CODE_NO_CONTENT) {
-        return BlockchainStatus::EMPTY_RESPONSE;
-    }
-
-    return commandType == "local" ? parseBlockchainResponse(response, command) : BlockchainStatus::SUCCESS;
+    return status;
 }
 
 String BlockchainHandler::encryptPayload(const std::string &payload)
@@ -272,6 +282,11 @@ BlockchainStatus BlockchainHandler::executeTransfer(const String& receiver, cons
     // Pass the transfer string reference to executeBlockchainCommand
     BlockchainStatus status = executeBlockchainCommand("send", command, transferString, params);
     return status;
+}
+
+BlockchainStatus BlockchainHandler::executeTransferFromString(const String& transferString) {
+    String response;
+    return executeHttpRequest("send", transferString, response);
 }
 
 // Function to convert enum to string

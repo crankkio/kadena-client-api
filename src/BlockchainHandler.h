@@ -85,6 +85,19 @@ class BlockchainHandler
      * It is used to interact with blockchain operations through web service APIs.
      *
      * @param commandType Identifies the web service for the call.
+     * @param postRaw The post raw string to be used for the command.
+     * @param response The response from the web service.
+     * @return A BlockchainStatus enumeration value indicating the result of the command execution.
+     */
+    BlockchainStatus executeHttpRequest(const String &commandType, const String &postRaw, String &response);
+
+    /**
+     * Executes a specified command on a blockchain web service.
+     *
+     * This method sends a command to a blockchain-related web service and retrieves the response.
+     * It is used to interact with blockchain operations through web service APIs.
+     *
+     * @param commandType Identifies the web service for the call.
      * @param command Specifies the blockchain command for execution on the web service.
      * @param postRaw The post raw string to be used for the command.
      * @param transferParams The transfer parameters to be used for the command.
@@ -114,6 +127,14 @@ class BlockchainHandler
      * @return A BlockchainStatus enum value indicating the result of the transfer.
      */
     BlockchainStatus executeTransfer(const String& receiver, const String& amount, const String& tokenContract, String& transferString);
+
+    /**
+     * Executes a token transfer on the blockchain from a string.
+     *
+     * @param transferString The transfer string to be used for the command.
+     * @return A BlockchainStatus enum value indicating the result of the transfer.
+     */
+    BlockchainStatus executeTransferFromString(const String& transferString);
 
     /**
      * Converts a BlockchainStatus enum value to its corresponding string representation.
