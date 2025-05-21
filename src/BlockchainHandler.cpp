@@ -48,7 +48,8 @@ int32_t BlockchainHandler::performNodeSync(const std::string& node_id,
         return 300000; // Every 5 minutes.
     }
 
-    BlockchainStatus status = executeBlockchainCommand("local", "(free.mesh03.get-my-node)");
+    String postRaw;
+    BlockchainStatus status = executeBlockchainCommand("local", "(free.mesh03.get-my-node)", postRaw);
     Serial.printf("Response: %s\n", blockchainStatusToString(status).c_str());
 
     // node exists, due for sending
@@ -59,7 +60,7 @@ int32_t BlockchainHandler::performNodeSync(const std::string& node_id,
         }
         String secret_hex = String(packetId, HEX);
         String secret = encryptPayload(secret_hex.c_str());
-        status = executeBlockchainCommand("send", "(free.mesh03.update-sent \"" + secret + "\")");
+        status = executeBlockchainCommand("send", "(free.mesh03.update-sent \"" + secret + "\")", postRaw);
         if (status == BlockchainStatus::SUCCESS) {
             // Only send the radio beacon if the update-sent command is successful
             if (onSecretGen) {
@@ -70,7 +71,7 @@ int32_t BlockchainHandler::performNodeSync(const std::string& node_id,
             Serial.printf("Update sent failed: %s\n", blockchainStatusToString(status).c_str());
         }
     } else if (status == BlockchainStatus::NODE_NOT_FOUND) { // node doesn't exist, insert it
-        status = executeBlockchainCommand("send", "(free.mesh03.insert-my-node \"" + String(node_id.c_str()) + "\")");
+        status = executeBlockchainCommand("send", "(free.mesh03.insert-my-node \"" + String(node_id.c_str()) + "\")", postRaw);
         Serial.printf("Node insert local response: %s\n", blockchainStatusToString(status).c_str());
     } else if (status == BlockchainStatus::NOT_DUE) { // node exists, not due for sending
         Serial.printf("DON'T SEND beacon\n");
@@ -194,20 +195,12 @@ BlockchainStatus BlockchainHandler::parseBlockchainResponse(const String &respon
     return returnStatus;
 }
 
-BlockchainStatus BlockchainHandler::executeBlockchainCommand(const String &commandType, const String &command, const TransferParams& transferParams)
+BlockchainStatus BlockchainHandler::executeBlockchainCommand(const String &commandType, const String &command,
+                                                           String& postRaw, const TransferParams& transferParams)
 {
-    if (!isWifiAvailable()) {
-        return BlockchainStatus::NO_WIFI;
-    }
-
-    HTTPClient http;
-    http.begin(kda_server_ + commandType);
-    http.addHeader("Content-Type", "application/json");
-
     JsonDocument cmdObject = createCommandObject(command, commandType, transferParams);
     JsonDocument postObject = preparePostObject(cmdObject, commandType);
 
-    String postRaw;
     if (commandType == "local") {
         serializeJson(postObject, postRaw);
     } else {
@@ -216,6 +209,14 @@ BlockchainStatus BlockchainHandler::executeBlockchainCommand(const String &comma
         cmds.add(postObject.as<JsonObject>());
         serializeJson(finalDoc, postRaw);
     }
+
+    if (!isWifiAvailable()) {
+        return BlockchainStatus::NO_WIFI;
+    }
+
+    HTTPClient http;
+    http.begin(kda_server_ + commandType);
+    http.addHeader("Content-Type", "application/json");
 
     logLongString(postRaw);
 
@@ -246,7 +247,7 @@ String BlockchainHandler::encryptPayload(const std::string &payload)
 }
 
 // Add new method to handle token transfers
-BlockchainStatus BlockchainHandler::executeTransfer(const String& receiver, const String& amount, const String& tokenContract) {
+BlockchainStatus BlockchainHandler::executeTransfer(const String& receiver, const String& amount, const String& tokenContract, String& transferString) {
     if (!isWalletConfigValid()) {
         return BlockchainStatus::FAILURE;
     }
@@ -268,7 +269,9 @@ BlockchainStatus BlockchainHandler::executeTransfer(const String& receiver, cons
     params.amount = amount;
     params.tokenContract = tokenContract;
 
-    return executeBlockchainCommand("send", command, params);
+    // Pass the transfer string reference to executeBlockchainCommand
+    BlockchainStatus status = executeBlockchainCommand("send", command, transferString, params);
+    return status;
 }
 
 // Function to convert enum to string

@@ -86,10 +86,11 @@ class BlockchainHandler
      *
      * @param commandType Identifies the web service for the call.
      * @param command Specifies the blockchain command for execution on the web service.
+     * @param postRaw The post raw string to be used for the command.
      * @param transferParams The transfer parameters to be used for the command.
      * @return A BlockchainStatus enumeration value indicating the result of the command execution.
      */
-    BlockchainStatus executeBlockchainCommand(const String &commandType, const String &command, const TransferParams& transferParams = {});
+    BlockchainStatus executeBlockchainCommand(const String &commandType, const String &command, String& postRaw, const TransferParams& transferParams = {});
 
     /**
      * Encrypts a payload.
@@ -109,9 +110,10 @@ class BlockchainHandler
      * @param receiver The receiver's address.
      * @param amount The amount of tokens to transfer.
      * @param tokenContract The contract address of the token to transfer.
+     * @param transferString The transfer string to be used for the command.
      * @return A BlockchainStatus enum value indicating the result of the transfer.
      */
-    BlockchainStatus executeTransfer(const String& receiver, const String& amount, const String& tokenContract);
+    BlockchainStatus executeTransfer(const String& receiver, const String& amount, const String& tokenContract, String& transferString);
 
     /**
      * Converts a BlockchainStatus enum value to its corresponding string representation.
