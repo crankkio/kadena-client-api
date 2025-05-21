@@ -42,7 +42,16 @@ public:
         ss << num;
         assign(ss.str());
     }
-    
+    bool isEmpty() const { return this->empty(); }
+    float toFloat() const {
+        try {
+            if (this->empty()) return 0.0f;
+            return std::stof(*this);
+        } catch (const std::exception& e) {
+            printf("Failed to convert: '%s'\n", this->c_str());
+            return 0.0f;  // Return 0 on failure, matching Arduino's behavior
+        }
+    }
     // Arduino-specific String methods
     String substring(size_t from, size_t to) const {
         return substr(from, to - from);

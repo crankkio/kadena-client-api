@@ -9,6 +9,7 @@
 #include <cstdio>
 #include <ctime>
 #include <sstream>
+#include <cmath>
 
 // Redefine strptime to avoid IRAM issue when using the HTTPClient functions
 char *strptime(const char *str, const char *format, struct tm *tm)
@@ -47,7 +48,8 @@ int32_t BlockchainHandler::performNodeSync(const std::string& node_id,
         return 300000; // Every 5 minutes.
     }
 
-    BlockchainStatus status = executeBlockchainCommand("local", "(free.mesh03.get-my-node)");
+    String postRaw;
+    BlockchainStatus status = executeBlockchainCommand("local", "(free.mesh03.get-my-node)", postRaw);
     Serial.printf("Response: %s\n", blockchainStatusToString(status).c_str());
 
     // node exists, due for sending
@@ -58,7 +60,7 @@ int32_t BlockchainHandler::performNodeSync(const std::string& node_id,
         }
         String secret_hex = String(packetId, HEX);
         String secret = encryptPayload(secret_hex.c_str());
-        status = executeBlockchainCommand("send", "(free.mesh03.update-sent \"" + secret + "\")");
+        status = executeBlockchainCommand("send", "(free.mesh03.update-sent \"" + secret + "\")", postRaw);
         if (status == BlockchainStatus::SUCCESS) {
             // Only send the radio beacon if the update-sent command is successful
             if (onSecretGen) {
@@ -69,7 +71,7 @@ int32_t BlockchainHandler::performNodeSync(const std::string& node_id,
             Serial.printf("Update sent failed: %s\n", blockchainStatusToString(status).c_str());
         }
     } else if (status == BlockchainStatus::NODE_NOT_FOUND) { // node doesn't exist, insert it
-        status = executeBlockchainCommand("send", "(free.mesh03.insert-my-node \"" + String(node_id.c_str()) + "\")");
+        status = executeBlockchainCommand("send", "(free.mesh03.insert-my-node \"" + String(node_id.c_str()) + "\")", postRaw);
         Serial.printf("Node insert local response: %s\n", blockchainStatusToString(status).c_str());
     } else if (status == BlockchainStatus::NOT_DUE) { // node exists, not due for sending
         Serial.printf("DON'T SEND beacon\n");
@@ -79,16 +81,18 @@ int32_t BlockchainHandler::performNodeSync(const std::string& node_id,
     return 300000; // Every 5 minutes. That should be enough for previous txn to be complete
 }
 
-JsonDocument BlockchainHandler::createCommandObject(const String &command)
+JsonDocument BlockchainHandler::createCommandObject(const String &command, const String &commandType, const TransferParams& transferParams)
 {
     JsonDocument cmdObject;
 
     // Create signers array
     JsonArray signers = cmdObject["signers"].to<JsonArray>();
-    JsonObject signer = signers.add<JsonObject>();
-    signer["scheme"] = "ED25519";
-    signer["pubKey"] = public_key_;
-    signer["addr"] = public_key_;
+    JsonObject signer;
+    if (commandType == "send") {
+        signer = signers.add<JsonObject>();
+        //signer["scheme"] = "ED25519";
+        signer["pubKey"] = public_key_;
+    }
 
     // Create meta object
     JsonObject meta = cmdObject["meta"].to<JsonObject>();
@@ -96,7 +100,7 @@ JsonDocument BlockchainHandler::createCommandObject(const String &command)
     meta["ttl"] = 28800;
     meta["chainId"] = "19";
     meta["gasPrice"] = 1e-7;
-    meta["gasLimit"] = 8000;
+    meta["gasLimit"] = 2500;
     meta["sender"] = "k:" + public_key_;
 
     cmdObject["nonce"] = getCurrentTimestamp();
@@ -106,8 +110,31 @@ JsonDocument BlockchainHandler::createCommandObject(const String &command)
     JsonObject payload = cmdObject["payload"].to<JsonObject>();
     JsonObject exec = payload["exec"].to<JsonObject>();
     exec["code"] = command;
-    exec["data"].to<JsonObject>(); // Empty data object
+    // Add keyset to data section
+    JsonObject data = exec["data"].to<JsonObject>();
 
+    // Add transfer-specific capabilities and keyset
+    if (command.indexOf("transfer") != -1 && !transferParams.receiver.isEmpty()) {
+        // JsonObject keyset = data["keyset"].to<JsonObject>();
+        // keyset["keys"] = JsonArray().add(transferParams.receiver.c_str());
+        // keyset["pred"] = "keys-all";
+        if (signer.isNull()) {
+            signer = signers.add<JsonObject>();
+        }
+        // Add capabilities to signer's clist
+        JsonArray scaps = signer["clist"].to<JsonArray>();
+        // Always add GAS capability to signer
+        JsonObject gasCap = scaps.add<JsonObject>();
+        gasCap["name"] = "coin.GAS";
+        gasCap["args"].to<JsonArray>();
+        // Add TRANSFER capability to signer's clist
+        JsonObject transferCap = scaps.add<JsonObject>();
+        transferCap["name"] = transferParams.tokenContract + ".TRANSFER";
+        JsonArray args = transferCap["args"].to<JsonArray>();
+        args.add("k:" + public_key_);
+        args.add("k:" + transferParams.receiver);
+        args.add(transferParams.amount.toFloat());
+    }
     return cmdObject;
 }
 
@@ -128,8 +155,10 @@ JsonDocument BlockchainHandler::preparePostObject(const JsonDocument &cmdObject,
 
     postObject["hash"] = hash;
     JsonArray sigs = postObject["sigs"].to<JsonArray>();
-    JsonObject sigObject = sigs.add<JsonObject>();
-    sigObject["sig"] = signHex;
+    if (commandType == "send") {
+        JsonObject sigObject = sigs.add<JsonObject>();
+        sigObject["sig"] = signHex;
+    }
 
     return postObject;
 }
@@ -166,7 +195,7 @@ BlockchainStatus BlockchainHandler::parseBlockchainResponse(const String &respon
     return returnStatus;
 }
 
-BlockchainStatus BlockchainHandler::executeBlockchainCommand(const String &commandType, const String &command)
+BlockchainStatus BlockchainHandler::executeHttpRequest(const String &commandType, const String &postRaw, String &response)
 {
     if (!isWifiAvailable()) {
         return BlockchainStatus::NO_WIFI;
@@ -176,24 +205,11 @@ BlockchainStatus BlockchainHandler::executeBlockchainCommand(const String &comma
     http.begin(kda_server_ + commandType);
     http.addHeader("Content-Type", "application/json");
 
-    JsonDocument cmdObject = createCommandObject(command);
-    JsonDocument postObject = preparePostObject(cmdObject, commandType);
-
-    String postRaw;
-    if (commandType == "local") {
-        serializeJson(postObject, postRaw);
-    } else {
-        JsonDocument finalDoc;
-        JsonArray cmds = finalDoc["cmds"].to<JsonArray>();
-        cmds.add(postObject.as<JsonObject>());
-        serializeJson(finalDoc, postRaw);
-    }
-
     logLongString(postRaw);
 
     http.setTimeout(15000);
     int httpResponseCode = http.POST(postRaw);
-    String response = http.getString();
+    response = http.getString();
     logLongString(response);
 
     http.end();
@@ -205,7 +221,30 @@ BlockchainStatus BlockchainHandler::executeBlockchainCommand(const String &comma
         return BlockchainStatus::EMPTY_RESPONSE;
     }
 
-    return commandType == "local" ? parseBlockchainResponse(response, command) : BlockchainStatus::SUCCESS;
+    return BlockchainStatus::SUCCESS;
+}
+
+
+BlockchainStatus BlockchainHandler::executeBlockchainCommand(const String &commandType, const String &command,
+                                                           String& postRaw, const TransferParams& transferParams)
+{
+    JsonDocument cmdObject = createCommandObject(command, commandType, transferParams);
+    JsonDocument postObject = preparePostObject(cmdObject, commandType);
+
+    if (commandType == "local") {
+        serializeJson(postObject, postRaw);
+    } else {
+        JsonDocument finalDoc;
+        JsonArray cmds = finalDoc["cmds"].to<JsonArray>();
+        cmds.add(postObject.as<JsonObject>());
+        serializeJson(finalDoc, postRaw);
+    }
+    String response;
+    BlockchainStatus status = executeHttpRequest(commandType, postRaw, response);
+    if (status == BlockchainStatus::SUCCESS && commandType == "local") {
+        return parseBlockchainResponse(response, command);
+    }
+    return status;
 }
 
 String BlockchainHandler::encryptPayload(const std::string &payload)
@@ -215,6 +254,39 @@ String BlockchainHandler::encryptPayload(const std::string &payload)
         return "";
     }
     return encryptionHandler_->encrypt(director_pubkeyd_, payload);
+}
+
+// Add new method to handle token transfers
+BlockchainStatus BlockchainHandler::executeTransfer(const String& receiver, const String& amount, const String& tokenContract, String& transferString) {
+    if (!isWalletConfigValid()) {
+        return BlockchainStatus::FAILURE;
+    }
+
+    float amountFloat = amount.toFloat();
+    // Validate amount
+    if (amountFloat <= 0 || std::isnan(amountFloat) || std::isinf(amountFloat)) {
+        return BlockchainStatus::INVALID_AMOUNT;
+    }
+
+    // Construct the transfer command with capabilities
+    String command = "(" + tokenContract + ".transfer \"k:" +
+                    String(public_key_.c_str()) + "\" \"k:" + receiver + "\" " +
+                    amount + ")";
+
+    // Package parameters
+    TransferParams params;
+    params.receiver = receiver;
+    params.amount = amount;
+    params.tokenContract = tokenContract;
+
+    // Pass the transfer string reference to executeBlockchainCommand
+    BlockchainStatus status = executeBlockchainCommand("send", command, transferString, params);
+    return status;
+}
+
+BlockchainStatus BlockchainHandler::executeTransferFromString(const String& transferString) {
+    String response;
+    return executeHttpRequest("send", transferString, response);
 }
 
 // Function to convert enum to string

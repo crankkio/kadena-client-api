@@ -22,6 +22,13 @@ enum class BlockchainStatus {
     NODE_NOT_FOUND,
     READY,
     NOT_DUE,
+    INVALID_AMOUNT,
+};
+
+struct TransferParams {
+    String receiver;
+    String amount;
+    String tokenContract;
 };
 
 // Meshtastic callbacks
@@ -78,10 +85,25 @@ class BlockchainHandler
      * It is used to interact with blockchain operations through web service APIs.
      *
      * @param commandType Identifies the web service for the call.
-     * @param command Specifies the blockchain command for execution on the web service.
+     * @param postRaw The post raw string to be used for the command.
+     * @param response The response from the web service.
      * @return A BlockchainStatus enumeration value indicating the result of the command execution.
      */
-    BlockchainStatus executeBlockchainCommand(const String &commandType, const String &command);
+    BlockchainStatus executeHttpRequest(const String &commandType, const String &postRaw, String &response);
+
+    /**
+     * Executes a specified command on a blockchain web service.
+     *
+     * This method sends a command to a blockchain-related web service and retrieves the response.
+     * It is used to interact with blockchain operations through web service APIs.
+     *
+     * @param commandType Identifies the web service for the call.
+     * @param command Specifies the blockchain command for execution on the web service.
+     * @param postRaw The post raw string to be used for the command.
+     * @param transferParams The transfer parameters to be used for the command.
+     * @return A BlockchainStatus enumeration value indicating the result of the command execution.
+     */
+    BlockchainStatus executeBlockchainCommand(const String &commandType, const String &command, String& postRaw, const TransferParams& transferParams = {});
 
     /**
      * Encrypts a payload.
@@ -94,6 +116,25 @@ class BlockchainHandler
      * @return A string containing the encrypted payload.
      */
     String encryptPayload(const std::string &payload);
+
+    /**
+     * Executes a token transfer on the blockchain.
+     *
+     * @param receiver The receiver's address.
+     * @param amount The amount of tokens to transfer.
+     * @param tokenContract The contract address of the token to transfer.
+     * @param transferString The transfer string to be used for the command.
+     * @return A BlockchainStatus enum value indicating the result of the transfer.
+     */
+    BlockchainStatus executeTransfer(const String& receiver, const String& amount, const String& tokenContract, String& transferString);
+
+    /**
+     * Executes a token transfer on the blockchain from a string.
+     *
+     * @param transferString The transfer string to be used for the command.
+     * @return A BlockchainStatus enum value indicating the result of the transfer.
+     */
+    BlockchainStatus executeTransferFromString(const String& transferString);
 
     /**
      * Converts a BlockchainStatus enum value to its corresponding string representation.
@@ -121,9 +162,11 @@ class BlockchainHandler
      * Uses ArduinoJson's JsonDocument for efficient memory management and JSON handling.
      *
      * @param command The blockchain command to be executed.
+     * @param commandType The type of the command, affecting how the command object is prepared.
+     * @param transferParams The transfer parameters to be used for the command.
      * @return A JsonDocument representing the command to be sent to the blockchain.
      */
-    JsonDocument createCommandObject(const String &command);
+    JsonDocument createCommandObject(const String &command, const String &commandType, const TransferParams& transferParams = {});
 
     /**
      * Prepares a JSON document for POST request based on the command object and command type.
